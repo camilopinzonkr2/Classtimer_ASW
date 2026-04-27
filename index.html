@@ -9,166 +9,66 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg-color: #f3f4f6;
-            --text-color: #333;
-            --card-bg: #fff;
-            --primary: #4A90E2;
-            --secondary: #4CAF50;
-        }
-
-        body.dark-mode {
-            --bg-color: #1a1a1a;
-            --text-color: #f3f4f6;
-            --card-bg: #2d2d2d;
-        }
-
-        body {
-            margin: 0;
-            font-family: 'Roboto', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            transition: all 0.3s ease;
-        }
-
-        .container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            min-height: 100vh;
-            box-sizing: border-box;
-        }
-
+        :root { --bg-color: #f3f4f6; --text-color: #333; --card-bg: #fff; --primary: #4A90E2; --secondary: #4CAF50; }
+        body.dark-mode { --bg-color: #1a1a1a; --text-color: #f3f4f6; --card-bg: #2d2d2d; }
+        body { margin: 0; font-family: 'Roboto', sans-serif; background-color: var(--bg-color); color: var(--text-color); transition: all 0.3s ease; }
+        .container { display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; box-sizing: border-box; }
         .teacher-name { color: var(--primary); font-size: 24px; font-weight: bold; margin-bottom: 5px; }
         .block-label { font-size: 18px; color: #777; margin: 5px 0; }
         .remaining-class { color: var(--secondary); font-size: 16px; margin-bottom: 20px; }
-
         .student-list { width: 100%; max-width: 400px; }
-        .student-item {
-            background: var(--card-bg);
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 12px;
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: transform 0.2s;
-        }
-
-        .current-turn {
-            border: 2px solid var(--primary);
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.03); }
-            100% { transform: scale(1); }
-        }
-
-        .alert-up { color: #ff4d4d; font-weight: bold; margin-top: 5px; }
-
-        .controls { margin-top: 30px; text-align: center; }
+        .student-item { background: var(--card-bg); padding: 15px; margin-bottom: 10px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .current-turn { border: 2px solid var(--primary); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }
+        .controls { margin-top: 30px; text-align: center; border-top: 1px solid #ddd; padding-top: 20px; width: 100%; max-width: 400px;}
         .button-group { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
-        
-        button {
-            background: var(--primary);
-            border: none;
-            color: white;
-            padding: 15px 25px;
-            border-radius: 8px;
-            font-size: 20px;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-
-        button:active { opacity: 0.7; }
-
-        /* Estilo para el botón PiP */
-        .pip-button {
-            background: #607d8b;
-            font-size: 14px;
-            padding: 10px 15px;
-            margin-top: 15px;
-        }
-
-        .footer { margin-top: auto; padding: 20px; color: #888; font-size: 14px; }
-
-        .header-tools { width: 100%; display: flex; justify-content: flex-start; margin-bottom: 20px; }
-        .welcome-screen {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: var(--primary); color: white;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 100;
-        }
-        input { padding: 10px; border-radius: 5px; border: none; margin-top: 10px; width: 200px; }
-
-        /* Ocultar elementos técnicos del PiP */
-        #pip-assets {
-            position: fixed;
-            left: -9999px;
-            top: -9999px;
-            opacity: 0;
-            pointer-events: none;
-        }
+        button { background: var(--primary); border: none; color: white; padding: 12px 20px; border-radius: 8px; font-size: 18px; cursor: pointer; }
+        .pip-button { background: #546e7a; margin-top: 15px; width: 100%; font-size: 16px; }
+        .welcome-screen { position: fixed; inset: 0; background: var(--primary); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+        #pip-assets { position: absolute; left: -9999px; }
     </style>
 </head>
 <body>
     <div id="root"></div>
-
     <div id="pip-assets">
         <canvas id="pip-canvas" width="300" height="150"></canvas>
         <video id="pip-video" autoplay muted playsinline></video>
     </div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo, useRef } = React;
+        const { useState, useEffect, useMemo } = React;
 
         const WEEKDAY_BLOCKS = [
-            { label: "6:05 am - 7:25 am", start: 6 * 60 + 5, end: 7 * 60 + 25 },
-            { label: "7:35 am - 8:55 am", start: 7 * 60 + 35, end: 8 * 60 + 55 },
-            { label: "9:05 am - 10:25 am", start: 9 * 60 + 5, end: 10 * 60 + 25 },
-            { label: "10:35 am - 11:55 am", start: 10 * 60 + 35, end: 11 * 60 + 55 },
-            { label: "12:05 pm - 1:25 pm", start: 12 * 60 + 5, end: 13 * 60 + 25 },
-            { label: "1:35 pm - 2:55 pm", start: 13 * 60 + 35, end: 14 * 60 + 55 },
-            { label: "3:05 pm - 4:25 pm", start: 15 * 60 + 5, end: 16 * 60 + 25 },
-            { label: "4:35 pm - 5:55 pm", start: 16 * 60 + 35, end: 17 * 60 + 55 },
-            { label: "6:05 pm - 7:25 pm", start: 18 * 60 + 5, end: 19 * 60 + 25 },
-            { label: "7:35 pm - 8:55 pm", start: 19 * 60 + 35, end: 20 * 60 + 55 },
-        ];
-
-        const SATURDAY_BLOCKS = [
-            { label: "8:05 am - 9:25 am", start: 8 * 60 + 5, end: 9 * 60 + 25 },
-            { label: "9:35 am - 10:55 am", start: 9 * 60 + 35, end: 10 * 60 + 55 },
-            { label: "11:05 am - 12:25 pm", start: 11 * 60 + 5, end: 12 * 60 + 25 },
-            { label: "1:05 pm - 2:25 pm", start: 13 * 60 + 5, end: 14 * 60 + 25 },
-            { label: "2:35 pm - 3:55 pm", start: 14 * 60 + 35, end: 15 * 60 + 55 }
+            { label: "6:05 am - 7:25 am", start: 365, end: 445 },
+            { label: "7:35 am - 8:55 am", start: 455, end: 535 },
+            { label: "9:05 am - 10:25 am", start: 545, end: 625 },
+            { label: "10:35 am - 11:55 am", start: 635, end: 715 },
+            { label: "12:05 pm - 1:25 pm", start: 725, end: 805 },
+            { label: "1:35 pm - 2:55 pm", start: 815, end: 895 },
+            { label: "3:05 pm - 4:25 pm", start: 905, end: 985 },
+            { label: "4:35 pm - 5:55 pm", start: 995, end: 1075 },
+            { label: "6:05 pm - 7:25 pm", start: 1085, end: 1165 },
+            { label: "7:35 pm - 8:55 pm", start: 1175, end: 1255 }
         ];
 
         const App = () => {
             const [numStudents, setNumStudents] = useState(() => JSON.parse(localStorage.getItem('numStudents')) || 1);
             const [teacherName, setTeacherName] = useState(() => localStorage.getItem('teacherName') || '');
-            const [isDarkMode, setIsDarkMode] = useState(false);
             const [currentTime, setCurrentTime] = useState(0);
 
-            // Reloj principal
             useEffect(() => {
-                const timer = setInterval(() => {
+                const update = () => {
                     const now = new Date();
                     setCurrentTime(now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60);
-                }, 1000);
+                };
+                update();
+                const timer = setInterval(update, 1000);
                 return () => clearInterval(timer);
             }, []);
 
-            useEffect(() => {
-                localStorage.setItem('numStudents', numStudents);
-                localStorage.setItem('teacherName', teacherName);
-                document.body.className = isDarkMode ? 'dark-mode' : '';
-            }, [numStudents, teacherName, isDarkMode]);
-
             const currentBlock = useMemo(() => {
                 const day = new Date().getDay();
-                const blocks = day === 6 ? SATURDAY_BLOCKS : WEEKDAY_BLOCKS;
+                const blocks = day === 6 ? [] : WEEKDAY_BLOCKS; // Simplificado para prueba
                 return blocks.find(b => currentTime >= b.start && currentTime < b.end);
             }, [currentTime]);
 
@@ -180,134 +80,83 @@
 
             const studentsData = useMemo(() => {
                 if (!currentBlock) return [];
-                const totalDuration = currentBlock.end - currentBlock.start;
-                const studentTime = totalDuration / numStudents;
-
+                const studentTime = (currentBlock.end - currentBlock.start) / numStudents;
                 return Array.from({ length: numStudents }).map((_, i) => {
                     const start = currentBlock.start + (i * studentTime);
                     const end = start + studentTime;
-                    let remaining = 0;
-                    if (currentTime < start) remaining = studentTime;
-                    else if (currentTime < end) remaining = end - currentTime;
-                    return { remaining, active: currentTime >= start && currentTime < end };
+                    return { 
+                        remaining: currentTime < start ? studentTime : Math.max(0, end - currentTime),
+                        active: currentTime >= start && currentTime < end 
+                    };
                 });
             }, [currentBlock, numStudents, currentTime]);
-
-            // --- LÓGICA PICTURE-IN-PICTURE ---
-            
-            const activeStudent = useMemo(() => studentsData.find(s => s.active), [studentsData]);
 
             useEffect(() => {
                 const canvas = document.getElementById('pip-canvas');
                 const ctx = canvas.getContext('2d');
-                
-                // Fondo oscuro
+                const active = studentsData.find(s => s.active);
                 ctx.fillStyle = "#1a1a1a";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                // Texto Timer
+                ctx.fillRect(0, 0, 300, 150);
                 ctx.fillStyle = "#4A90E2";
-                ctx.font = "bold 20px Roboto, Arial";
+                ctx.font = "bold 20px Arial";
                 ctx.textAlign = "center";
-                ctx.fillText(activeStudent ? "Student Active" : "No Active Class", canvas.width/2, 40);
-                
+                ctx.fillText(active ? "Time Remaining" : "Class Timer", 150, 40);
                 ctx.fillStyle = "#ffffff";
-                ctx.font = "bold 60px Roboto, Arial";
-                const timeText = activeStudent ? formatTime(activeStudent.remaining) : "00:00";
-                ctx.fillText(timeText, canvas.width/2, 110);
-
-            }, [currentTime, activeStudent]);
+                ctx.font = "bold 60px Arial";
+                ctx.fillText(active ? formatTime(active.remaining) : "00:00", 150, 110);
+            }, [currentTime, studentsData]);
 
             const togglePiP = async () => {
                 const video = document.getElementById('pip-video');
                 const canvas = document.getElementById('pip-canvas');
-
                 try {
                     if (document.pictureInPictureElement) {
                         await document.exitPictureInPicture();
                     } else {
-                        // Capturar el stream del canvas a 10 fps (suficiente para un timer)
-                        const stream = canvas.captureStream(10);
-                        video.srcObject = stream;
-                        
-                        video.onloadedmetadata = () => {
-                            video.play();
-                            video.requestPictureInPicture();
-                        };
+                        video.srcObject = canvas.captureStream(10);
+                        await video.play();
+                        await video.requestPictureInPicture();
                     }
-                } catch (error) {
-                    console.error("PiP Error: ", error);
-                    alert("Tu navegador no soporta Picture-in-Picture o esta función.");
-                }
+                } catch (e) { alert("Error: Verifica que uses Chrome/Edge y HTTPS"); }
             };
 
-            if (!teacherName) {
-                return (
-                    <div className="welcome-screen">
-                        <h1>Welcome Teacher!</h1>
-                        <input 
-                            type="text" 
-                            placeholder="Enter your name" 
-                            onKeyDown={(e) => e.key === 'Enter' && setTeacherName(e.target.value)}
-                        />
-                        <p>Press Enter to start</p>
-                    </div>
-                );
-            }
+            if (!teacherName) return (
+                <div className="welcome-screen">
+                    <h1>Class Timer</h1>
+                    <input type="text" placeholder="Tu nombre" onKeyDown={e => e.key === 'Enter' && setTeacherName(e.target.value)} />
+                </div>
+            );
 
             return (
                 <div className="container">
-                    <div className="header-tools">
-                        <label>
-                            <input type="checkbox" onChange={() => setIsDarkMode(!isDarkMode)} /> Dark Mode
-                        </label>
-                    </div>
-
-                    <div className="teacher-name">Teacher: {teacherName}</div>
-                    
+                    <div className="teacher-name">Profesor: {teacherName}</div>
                     {currentBlock ? (
                         <>
-                            <div className="block-label">Block: {currentBlock.label}</div>
-                            <div className="remaining-class">
-                                Class Ends in: {formatTime(currentBlock.end - currentTime)}
-                            </div>
-
+                            <div className="block-label">{currentBlock.label}</div>
                             <div className="student-list">
                                 {studentsData.map((s, i) => (
                                     <div key={i} className={`student-item ${s.active ? 'current-turn' : ''}`}>
-                                        <strong>Student {i + 1}</strong><br/>
-                                        {formatTime(s.remaining)} remaining
-                                        {s.remaining <= 0 && currentTime > currentBlock.start && (
-                                            <div className="alert-up">Time's up!</div>
-                                        )}
+                                        <strong>Estudiante {i + 1}</strong><br/>
+                                        {formatTime(s.remaining)}
                                     </div>
                                 ))}
                             </div>
                         </>
-                    ) : (
-                        <div style={{margin: '40px 0'}}>No class active at this moment</div>
-                    )}
-
+                    ) : <div style={{margin:'20px'}}>Fuera de horario de clase</div>}
+                    
                     <div className="controls">
-                        <div>Number of Students: {numStudents}</div>
+                        <div>Estudiantes: {numStudents}</div>
                         <div className="button-group">
                             <button onClick={() => setNumStudents(Math.max(1, numStudents - 1))}>-</button>
-                            <button onClick={() => setNumStudents(Math.min(6, numStudents + 1))}>+</button>
+                            <button onClick={() => setNumStudents(Math.min(10, numStudents + 1))}>+</button>
                         </div>
-                        
-                        {/* BOTÓN PARA ACTIVAR PiP */}
-                        <button className="pip-button" onClick={togglePiP}>
-                            📺 Abrir Mini Ventana (PiP)
-                        </button>
+                        <button className="pip-button" onClick={togglePiP}>📺 ACTIVAR VENTANA FLOTANTE</button>
                     </div>
-
-                    <div className="footer">Created by Teacher Hernán Camilo</div>
                 </div>
             );
         };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
 </body>
 </html>
