@@ -84,9 +84,16 @@
 
         button:active { opacity: 0.7; }
 
+        /* Estilo para el botón PiP */
+        .pip-button {
+            background: #607d8b;
+            font-size: 14px;
+            padding: 10px 15px;
+            margin-top: 15px;
+        }
+
         .footer { margin-top: auto; padding: 20px; color: #888; font-size: 14px; }
 
-        /* Switch Dark Mode Simple */
         .header-tools { width: 100%; display: flex; justify-content: flex-start; margin-bottom: 20px; }
         .welcome-screen {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -95,13 +102,27 @@
             z-index: 100;
         }
         input { padding: 10px; border-radius: 5px; border: none; margin-top: 10px; width: 200px; }
+
+        /* Ocultar elementos técnicos del PiP */
+        #pip-assets {
+            position: fixed;
+            left: -9999px;
+            top: -9999px;
+            opacity: 0;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
+    <div id="pip-assets">
+        <canvas id="pip-canvas" width="300" height="150"></canvas>
+        <video id="pip-video" autoplay muted playsinline></video>
+    </div>
+
     <script type="text/babel">
-        const { useState, useEffect, useMemo, useCallback } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
         const WEEKDAY_BLOCKS = [
             { label: "6:05 am - 7:25 am", start: 6 * 60 + 5, end: 7 * 60 + 25 },
@@ -130,7 +151,7 @@
             const [isDarkMode, setIsDarkMode] = useState(false);
             const [currentTime, setCurrentTime] = useState(0);
 
-            // Actualizar reloj cada segundo
+            // Reloj principal
             useEffect(() => {
                 const timer = setInterval(() => {
                     const now = new Date();
@@ -159,10 +180,8 @@
 
             const studentsData = useMemo(() => {
                 if (!currentBlock) return [];
-
-		const totalDuration = currentBlock.end - currentBlock.start;
-            	const studentTime = totalDuration / numStudents;
-
+                const totalDuration = currentBlock.end - currentBlock.start;
+                const studentTime = totalDuration / numStudents;
 
                 return Array.from({ length: numStudents }).map((_, i) => {
                     const start = currentBlock.start + (i * studentTime);
@@ -173,6 +192,54 @@
                     return { remaining, active: currentTime >= start && currentTime < end };
                 });
             }, [currentBlock, numStudents, currentTime]);
+
+            // --- LÓGICA PICTURE-IN-PICTURE ---
+            
+            const activeStudent = useMemo(() => studentsData.find(s => s.active), [studentsData]);
+
+            useEffect(() => {
+                const canvas = document.getElementById('pip-canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Fondo oscuro
+                ctx.fillStyle = "#1a1a1a";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Texto Timer
+                ctx.fillStyle = "#4A90E2";
+                ctx.font = "bold 20px Roboto, Arial";
+                ctx.textAlign = "center";
+                ctx.fillText(activeStudent ? "Student Active" : "No Active Class", canvas.width/2, 40);
+                
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 60px Roboto, Arial";
+                const timeText = activeStudent ? formatTime(activeStudent.remaining) : "00:00";
+                ctx.fillText(timeText, canvas.width/2, 110);
+
+            }, [currentTime, activeStudent]);
+
+            const togglePiP = async () => {
+                const video = document.getElementById('pip-video');
+                const canvas = document.getElementById('pip-canvas');
+
+                try {
+                    if (document.pictureInPictureElement) {
+                        await document.exitPictureInPicture();
+                    } else {
+                        // Capturar el stream del canvas a 10 fps (suficiente para un timer)
+                        const stream = canvas.captureStream(10);
+                        video.srcObject = stream;
+                        
+                        video.onloadedmetadata = () => {
+                            video.play();
+                            video.requestPictureInPicture();
+                        };
+                    }
+                } catch (error) {
+                    console.error("PiP Error: ", error);
+                    alert("Tu navegador no soporta Picture-in-Picture o esta función.");
+                }
+            };
 
             if (!teacherName) {
                 return (
@@ -227,6 +294,11 @@
                             <button onClick={() => setNumStudents(Math.max(1, numStudents - 1))}>-</button>
                             <button onClick={() => setNumStudents(Math.min(6, numStudents + 1))}>+</button>
                         </div>
+                        
+                        {/* BOTÓN PARA ACTIVAR PiP */}
+                        <button className="pip-button" onClick={togglePiP}>
+                            📺 Abrir Mini Ventana (PiP)
+                        </button>
                     </div>
 
                     <div className="footer">Created by Teacher Hernán Camilo</div>
