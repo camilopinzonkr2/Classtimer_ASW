@@ -4,41 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Class Timer - Teacher Hernán</title>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        :root { --bg-color: #f3f4f6; --text-color: #333; --card-bg: #fff; --primary: #4A90E2; --secondary: #4CAF50; }
-        body.dark-mode { --bg-color: #1a1a1a; --text-color: #f3f4f6; --card-bg: #2d2d2d; }
-        body { margin: 0; font-family: 'Roboto', sans-serif; background-color: var(--bg-color); color: var(--text-color); transition: all 0.3s ease; }
-        .container { display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; box-sizing: border-box; }
-        .teacher-name { color: var(--primary); font-size: 24px; font-weight: bold; margin-bottom: 5px; }
-        .block-label { font-size: 18px; color: #777; margin: 5px 0; }
-        .remaining-class { color: var(--secondary); font-size: 16px; margin-bottom: 20px; }
-        .student-list { width: 100%; max-width: 400px; }
-        .student-item { background: var(--card-bg); padding: 15px; margin-bottom: 10px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .current-turn { border: 2px solid var(--primary); animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }
-        .controls { margin-top: 30px; text-align: center; border-top: 1px solid #ddd; padding-top: 20px; width: 100%; max-width: 400px;}
-        .button-group { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
-        button { background: var(--primary); border: none; color: white; padding: 12px 20px; border-radius: 8px; font-size: 18px; cursor: pointer; }
-        .pip-button { background: #546e7a; margin-top: 15px; width: 100%; font-size: 16px; }
+        :root { --primary: #4A90E2; --bg: #f3f4f6; --dark: #1a1a1a; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        
+        .container { padding: 20px; width: 100%; max-width: 400px; text-align: center; }
         .welcome-screen { position: fixed; inset: 0; background: var(--primary); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
-        #pip-assets { position: absolute; left: -9999px; }
+        .hidden { display: none !important; }
+
+        .student-item { background: white; padding: 15px; margin: 10px 0; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .active { border: 3px solid var(--primary); transform: scale(1.05); transition: 0.3s; }
+        
+        input { padding: 12px; border-radius: 8px; border: none; margin-top: 15px; width: 80%; }
+        button { background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; margin: 5px; }
+        
+        /* BOTÓN PiP SIEMPRE VISIBLE ABAJO */
+        #pip-btn {
+            background: #34495e;
+            width: 100%;
+            margin-top: 20px;
+            font-weight: bold;
+        }
+        
+        canvas, video { display: none; }
     </style>
 </head>
 <body>
-    <div id="root"></div>
-    <div id="pip-assets">
-        <canvas id="pip-canvas" width="300" height="150"></canvas>
-        <video id="pip-video" autoplay muted playsinline></video>
+
+    <div id="welcome" class="welcome-screen">
+        <h1>Teacher Timer</h1>
+        <input type="text" id="name-input" placeholder="Escribe tu nombre y presiona Enter">
     </div>
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+    <div id="app" class="container hidden">
+        <h2 id="display-name"></h2>
+        <h3 id="block-label">Buscando clase...</h3>
+        
+        <div id="students-container"></div>
 
-        const WEEKDAY_BLOCKS = [
+        <div style="margin-top: 20px; padding: 15px; border-top: 1px solid #ccc;">
+            <p>Estudiantes: <span id="num-count">2</span></p>
+            <button onclick="changeStudents(-1)">-</button>
+            <button onclick="changeStudents(1)">+</button>
+            <br>
+            <button id="pip-btn">📺 ABRIR MINI VENTANA (PiP)</button>
+        </div>
+    </div>
+
+    <canvas id="pip-canvas" width="300" height="150"></canvas>
+    <video id="pip-video" autoplay muted playsinline></video>
+
+    <script>
+        // Configuración de bloques
+        const BLOCKS = [
             { label: "6:05 am - 7:25 am", start: 365, end: 445 },
             { label: "7:35 am - 8:55 am", start: 455, end: 535 },
             { label: "9:05 am - 10:25 am", start: 545, end: 625 },
@@ -51,112 +69,109 @@
             { label: "7:35 pm - 8:55 pm", start: 1175, end: 1255 }
         ];
 
-        const App = () => {
-            const [numStudents, setNumStudents] = useState(() => JSON.parse(localStorage.getItem('numStudents')) || 1);
-            const [teacherName, setTeacherName] = useState(() => localStorage.getItem('teacherName') || '');
-            const [currentTime, setCurrentTime] = useState(0);
+        let teacherName = localStorage.getItem('teacherName') || '';
+        let numStudents = 2;
+        let activeTimerText = "00:00";
 
-            useEffect(() => {
-                const update = () => {
-                    const now = new Date();
-                    setCurrentTime(now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60);
-                };
-                update();
-                const timer = setInterval(update, 1000);
-                return () => clearInterval(timer);
-            }, []);
+        const welcomeDiv = document.getElementById('welcome');
+        const appDiv = document.getElementById('app');
+        const nameInput = document.getElementById('name-input');
 
-            const currentBlock = useMemo(() => {
-                const day = new Date().getDay();
-                const blocks = day === 6 ? [] : WEEKDAY_BLOCKS; // Simplificado para prueba
-                return blocks.find(b => currentTime >= b.start && currentTime < b.end);
-            }, [currentTime]);
+        // Manejo de Inicio
+        if (teacherName) startApp();
 
-            const formatTime = (timeInMinutes) => {
-                const mins = Math.floor(Math.max(0, timeInMinutes));
-                const secs = Math.round((timeInMinutes - mins) * 60);
-                return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-            };
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && nameInput.value) {
+                teacherName = nameInput.value;
+                localStorage.setItem('teacherName', teacherName);
+                startApp();
+            }
+        });
 
-            const studentsData = useMemo(() => {
-                if (!currentBlock) return [];
-                const studentTime = (currentBlock.end - currentBlock.start) / numStudents;
-                return Array.from({ length: numStudents }).map((_, i) => {
-                    const start = currentBlock.start + (i * studentTime);
-                    const end = start + studentTime;
-                    return { 
-                        remaining: currentTime < start ? studentTime : Math.max(0, end - currentTime),
-                        active: currentTime >= start && currentTime < end 
-                    };
-                });
-            }, [currentBlock, numStudents, currentTime]);
+        function startApp() {
+            welcomeDiv.classList.add('hidden');
+            appDiv.classList.remove('hidden');
+            document.getElementById('display-name').innerText = "Profesor: " + teacherName;
+            update();
+        }
 
-            useEffect(() => {
-                const canvas = document.getElementById('pip-canvas');
-                const ctx = canvas.getContext('2d');
-                const active = studentsData.find(s => s.active);
-                ctx.fillStyle = "#1a1a1a";
-                ctx.fillRect(0, 0, 300, 150);
-                ctx.fillStyle = "#4A90E2";
-                ctx.font = "bold 20px Arial";
-                ctx.textAlign = "center";
-                ctx.fillText(active ? "Time Remaining" : "Class Timer", 150, 40);
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "bold 60px Arial";
-                ctx.fillText(active ? formatTime(active.remaining) : "00:00", 150, 110);
-            }, [currentTime, studentsData]);
+        function changeStudents(val) {
+            numStudents = Math.max(1, numStudents + val);
+            document.getElementById('num-count').innerText = numStudents;
+        }
 
-            const togglePiP = async () => {
-                const video = document.getElementById('pip-video');
-                const canvas = document.getElementById('pip-canvas');
-                try {
-                    if (document.pictureInPictureElement) {
-                        await document.exitPictureInPicture();
-                    } else {
-                        video.srcObject = canvas.captureStream(10);
-                        await video.play();
-                        await video.requestPictureInPicture();
-                    }
-                } catch (e) { alert("Error: Verifica que uses Chrome/Edge y HTTPS"); }
-            };
+        // Bucle Principal
+        function update() {
+            const now = new Date();
+            const currentMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+            const block = BLOCKS.find(b => currentMin >= b.start && currentMin < b.end);
+            
+            const container = document.getElementById('students-container');
+            const label = document.getElementById('block-label');
 
-            if (!teacherName) return (
-                <div className="welcome-screen">
-                    <h1>Class Timer</h1>
-                    <input type="text" placeholder="Tu nombre" onKeyDown={e => e.key === 'Enter' && setTeacherName(e.target.value)} />
-                </div>
-            );
-
-            return (
-                <div className="container">
-                    <div className="teacher-name">Profesor: {teacherName}</div>
-                    {currentBlock ? (
-                        <>
-                            <div className="block-label">{currentBlock.label}</div>
-                            <div className="student-list">
-                                {studentsData.map((s, i) => (
-                                    <div key={i} className={`student-item ${s.active ? 'current-turn' : ''}`}>
-                                        <strong>Estudiante {i + 1}</strong><br/>
-                                        {formatTime(s.remaining)}
-                                    </div>
-                                ))}
-                            </div>
-                        </>
-                    ) : <div style={{margin:'20px'}}>Fuera de horario de clase</div>}
+            if (!block) {
+                label.innerText = "No hay clase activa";
+                container.innerHTML = "";
+                activeTimerText = "00:00";
+            } else {
+                label.innerText = block.label;
+                let html = "";
+                const duration = (block.end - block.start) / numStudents;
+                
+                for (let i = 0; i < numStudents; i++) {
+                    const start = block.start + (i * duration);
+                    const end = start + duration;
+                    const isActive = currentMin >= start && currentMin < end;
+                    const rem = Math.max(0, end - currentMin);
                     
-                    <div className="controls">
-                        <div>Estudiantes: {numStudents}</div>
-                        <div className="button-group">
-                            <button onClick={() => setNumStudents(Math.max(1, numStudents - 1))}>-</button>
-                            <button onClick={() => setNumStudents(Math.min(10, numStudents + 1))}>+</button>
-                        </div>
-                        <button className="pip-button" onClick={togglePiP}>📺 ACTIVAR VENTANA FLOTANTE</button>
-                    </div>
-                </div>
-            );
-        };
+                    const m = Math.floor(rem);
+                    const s = Math.floor((rem - m) * 60);
+                    const timeStr = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+                    
+                    if (isActive) activeTimerText = timeStr;
 
-        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+                    html += `<div class="student-item ${isActive ? 'active' : ''}">
+                                <strong>Estudiante ${i+1}</strong><br>${timeStr}
+                             </div>`;
+                }
+                container.innerHTML = html;
+            }
+
+            drawCanvas();
+            requestAnimationFrame(update);
+        }
+
+        // Dibujar en Canvas para el PiP
+        function drawCanvas() {
+            const canvas = document.getElementById('pip-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = "#1a1a1a";
+            ctx.fillRect(0, 0, 300, 150);
+            ctx.fillStyle = "#4A90E2";
+            ctx.textAlign = "center";
+            ctx.font = "20px Arial";
+            ctx.fillText("Timer Hernán", 150, 40);
+            ctx.fillStyle = "white";
+            ctx.font = "bold 70px Arial";
+            ctx.fillText(activeTimerText, 150, 115);
+        }
+
+        // Lógica Picture-in-Picture
+        document.getElementById('pip-btn').onclick = async () => {
+            const video = document.getElementById('pip-video');
+            const canvas = document.getElementById('pip-canvas');
+            try {
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                } else {
+                    video.srcObject = canvas.captureStream(10);
+                    await video.play();
+                    await video.requestPictureInPicture();
+                }
+            } catch (e) {
+                alert("Error: Usa Chrome/Edge y asegúrate de que la página cargue por HTTPS.");
+            }
+        };
     </script>
 </body>
 </html>
