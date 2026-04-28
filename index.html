@@ -75,33 +75,41 @@
             background: var(--primary);
             border: none;
             color: white;
-            padding: 15px 25px;
+            padding: 12px 20px;
             border-radius: 8px;
-            font-size: 20px;
+            font-size: 18px;
             cursor: pointer;
             transition: opacity 0.2s;
+        }
+
+        button.pip-btn {
+            background: #6c5ce7;
+            margin-top: 15px;
+            font-size: 14px;
         }
 
         button:active { opacity: 0.7; }
 
         .footer { margin-top: auto; padding: 20px; color: #888; font-size: 14px; }
 
-        /* Switch Dark Mode Simple */
-        .header-tools { width: 100%; display: flex; justify-content: flex-start; margin-bottom: 20px; }
+        /* Estilos de bienvenida */
         .welcome-screen {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: var(--primary); color: white;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             z-index: 100;
         }
-        input { padding: 10px; border-radius: 5px; border: none; margin-top: 10px; width: 200px; }
+        input[type="text"] { padding: 10px; border-radius: 5px; border: none; margin-top: 10px; width: 200px; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
+    <canvas id="pip-canvas" width="300" height="150" style="display:none;"></canvas>
+    <video id="pip-video" autoplay muted style="display:none;"></video>
+
     <script type="text/babel">
-        const { useState, useEffect, useMemo, useCallback } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
         const WEEKDAY_BLOCKS = [
             { label: "6:05 am - 7:25 am", start: 6 * 60 + 5, end: 7 * 60 + 25 },
@@ -130,7 +138,7 @@
             const [isDarkMode, setIsDarkMode] = useState(false);
             const [currentTime, setCurrentTime] = useState(0);
 
-            // Actualizar reloj cada segundo
+            // Reloj principal
             useEffect(() => {
                 const timer = setInterval(() => {
                     const now = new Date();
@@ -157,12 +165,72 @@
                 return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
             };
 
+            const activeStudentData = useMemo(() => {
+                if (!currentBlock) return null;
+                const totalDuration = currentBlock.end - currentBlock.start;
+                const studentTime = totalDuration / numStudents;
+
+                for(let i=0; i < numStudents; i++) {
+                    const start = currentBlock.start + (i * studentTime);
+                    const end = start + studentTime;
+                    if (currentTime >= start && currentTime < end) {
+                        return { index: i + 1, remaining: end - currentTime };
+                    }
+                }
+                return null;
+            }, [currentBlock, numStudents, currentTime]);
+
+            // Lógica para dibujar en Canvas y actualizar PiP
+            useEffect(() => {
+                const canvas = document.getElementById('pip-canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Fondo oscuro para legibilidad
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Texto
+                ctx.fillStyle = '#4A90E2';
+                ctx.font = 'bold 20px Roboto, sans-serif';
+                ctx.textAlign = 'center';
+                
+                if (activeStudentData) {
+                    ctx.fillText(`Student ${activeStudentData.index}`, canvas.width/2, 50);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 60px Roboto, sans-serif';
+                    ctx.fillText(formatTime(activeStudentData.remaining), canvas.width/2, 110);
+                } else {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '20px Roboto, sans-serif';
+                    ctx.fillText("No active turn", canvas.width/2, 85);
+                }
+            }, [activeStudentData]);
+
+            const togglePiP = async () => {
+                const video = document.getElementById('pip-video');
+                const canvas = document.getElementById('pip-canvas');
+
+                try {
+                    if (document.pictureInPictureElement) {
+                        await document.exitPictureInPicture();
+                    } else {
+                        // Capturar el stream del canvas a 10 FPS
+                        const stream = canvas.captureStream(10);
+                        video.srcObject = stream;
+                        video.onloadedmetadata = () => {
+                            video.requestPictureInPicture();
+                        };
+                    }
+                } catch (error) {
+                    console.error("PiP falló:", error);
+                    alert("Tu navegador no soporta PiP con Canvas o requiere interacción directa.");
+                }
+            };
+
             const studentsData = useMemo(() => {
                 if (!currentBlock) return [];
-
-		const totalDuration = currentBlock.end - currentBlock.start;
-            	const studentTime = totalDuration / numStudents;
-
+                const totalDuration = currentBlock.end - currentBlock.start;
+                const studentTime = totalDuration / numStudents;
 
                 return Array.from({ length: numStudents }).map((_, i) => {
                     const start = currentBlock.start + (i * studentTime);
@@ -205,7 +273,11 @@
                                 Class Ends in: {formatTime(currentBlock.end - currentTime)}
                             </div>
 
-                            <div className="student-list">
+                            <button className="pip-btn" onClick={togglePiP}>
+                                {document.pictureInPictureElement ? 'Close PiP' : '📱 Enable Floating Timer'}
+                            </button>
+
+                            <div className="student-list" style={{marginTop: '20px'}}>
                                 {studentsData.map((s, i) => (
                                     <div key={i} className={`student-item ${s.active ? 'current-turn' : ''}`}>
                                         <strong>Student {i + 1}</strong><br/>
