@@ -218,13 +218,25 @@
                     if (document.pictureInPictureElement) {
                         await document.exitPictureInPicture();
                     } else {
-                        // Capturar el stream del canvas a 10 FPS
+                        // FUERZA UN DIBUJO INICIAL: 
+                        // Esto asegura que el canvas no esté vacío al iniciar
+                        const ctx = canvas.getContext('2d');
+                        ctx.fillStyle = '#000000';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                        // Capturar el stream
                         const stream = canvas.captureStream(10);
                         video.srcObject = stream;
-                        video.onloadedmetadata = () => {
-                            video.requestPictureInPicture();
+                        
+                        // Esperar un milisegundo a que el video reconozca el stream
+                        video.onloadedmetadata = async () => {
+                            try {
+                                await video.play(); // Es vital que el video "reproduzca" el canvas
+                                await video.requestPictureInPicture();
+                            } catch (e) {
+                                console.error("Error al reproducir video PiP:", e);
+                            }
                         };
-                    }
                 } catch (error) {
                     console.error("PiP falló:", error);
                     alert("Tu navegador no soporta PiP con Canvas o requiere interacción directa.");
